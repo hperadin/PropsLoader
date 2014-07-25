@@ -8,9 +8,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Properties;
-
 import org.slf4j.Logger;
 
 public class PropsLoaderImpl implements PropsLoader {
@@ -30,23 +28,27 @@ public class PropsLoaderImpl implements PropsLoader {
     @Override
     public PropsLoader resolve(final String key) {
         synchronized (resolveMapLock) {
-            if (resolveMap == null) {
-                resolveMap = new LinkedHashMap<>();
+            try {
+                if (resolveMap == null) {
+                    resolveMap = new LinkedHashMap<>();
+                }
+
+                final PropsLoader cachedLoader = resolveMap.get(key);
+                if (cachedLoader != null) return cachedLoader;
+
+                final File base = file.getParentFile();
+                final String value = get(key);
+
+                final File resolvedFile = value.equals(".")
+                        ? findSingleFile(new File(base, key))
+                        : findSingleFile(new File(propsHome, value + "/" + key));
+
+                final PropsLoader newLoader = new PropsLoaderImpl(logger, propsHome, resolvedFile);
+                resolveMap.put(key, newLoader);
+                return newLoader;
+            } catch (final Exception e) {
+                throw new IllegalArgumentException(String.format("Could not resolve key \"%s\"!", key), e);
             }
-
-            final PropsLoader cachedLoader = resolveMap.get(key);
-            if (cachedLoader != null) return cachedLoader;
-
-            final File base = file.getParentFile();
-            final String value = get(key);
-
-            final File resolvedFile = value.equals(".")
-                    ? findSingleFile(new File(base, key))
-                    : findSingleFile(new File(propsHome, value + "/" + key));
-
-            final PropsLoader newLoader = new PropsLoaderImpl(logger, propsHome, resolvedFile);
-            resolveMap.put(key, newLoader);
-            return newLoader;
         }
     }
 
@@ -54,6 +56,11 @@ public class PropsLoaderImpl implements PropsLoader {
         final File parent = file.getParentFile();
         final String name = file.getName();
         final File[] foundFileList = parent.listFiles((p, n) -> n.startsWith(name));
+
+        if (foundFileList == null) {
+          throw new IllegalArgumentException(String.format("File with prefix \"%s\" not found in folder %s", name, parent.toString()));
+        }
+
         switch (foundFileList.length) {
             case 0:
                 throw new IllegalArgumentException(String.format("File with prefix \"%s\" not found!", name));
@@ -66,11 +73,14 @@ public class PropsLoaderImpl implements PropsLoader {
 
     @Override
     public String get(final String key) {
-        try {
-            return toMap().get(key);
-        } catch (final NoSuchElementException e) {
-            throw new IllegalArgumentException(String.format("Key \"%s\" not found", key), e);
+        if (key == null) {
+            throw new IllegalArgumentException(String.format("Key cannot be null!"));
         }
+        final String value = toMap().get(key);
+        if (value == null) {
+            throw new IllegalArgumentException(String.format("Key \"%s\" not found", key));
+        }
+        return value;
     }
 
     @Override
@@ -90,7 +100,7 @@ public class PropsLoaderImpl implements PropsLoader {
             props.load(toInputStream());
             return props;
         } catch (final IOException e) {
-            throw new IllegalArgumentException("An error occured while parsing properties from: " + file, e);
+            throw new IllegalArgumentException("An error occurred while parsing properties from: " + file, e);
         }
     }
 
@@ -133,7 +143,7 @@ public class PropsLoaderImpl implements PropsLoader {
                     source = Files.readAllBytes(file.toPath());
                     logger.debug("Loaded: {} ({} bytes)", file, source.length);
                 } catch (final IOException e) {
-                    throw new RuntimeException("An error occured while trying to reading file: " + file);
+                    throw new RuntimeException("An error occurred while trying to reading file: " + file);
                 }
             }
         }

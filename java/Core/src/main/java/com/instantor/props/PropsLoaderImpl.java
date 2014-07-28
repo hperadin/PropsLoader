@@ -9,6 +9,8 @@ import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.regex.Pattern;
+
 import org.slf4j.Logger;
 
 public class PropsLoaderImpl implements PropsLoader {
@@ -22,8 +24,44 @@ public class PropsLoaderImpl implements PropsLoader {
         this.file = findSingleFile(file);
     }
 
+    private final Object resolverMapLock = new Object();
+    private Map<String, PropsLoader> resolverMap;
+
     private final Object resolveMapLock = new Object();
     private Map<String, PropsLoader> resolveMap;
+
+    private static final Pattern resolverPattern = Pattern.compile("^(.*)[\\/]_(\\.\\w+)?$");
+    static boolean isResolver(final String value) {
+        return resolverPattern.matcher(value).matches();
+    }
+
+    @Override
+    public PropsResolver loadResolver(final String key) {
+        synchronized (resolverMapLock) {
+            try {
+                if (resolverMap == null) {
+                    resolverMap = new LinkedHashMap<>();
+                }
+
+                final PropsLoader cachedResolver = resolverMap.get(key);
+                if (cachedResolver != null) return cachedResolver;
+
+                final String value = get(key);
+                if (!isResolver(value)) {
+                    throw new IllegalArgumentException(String.format(
+                            "Could not load resolver for key \"%s\", value \"%s\" is not in underscore main config format!", key, value));
+                }
+
+                final File resolvedFile = findSingleFile(new File(propsHome, value));
+
+                final PropsLoader newLoader = new PropsLoaderImpl(logger, propsHome, resolvedFile);
+                resolverMap.put(key, newLoader);
+                return newLoader;
+            } catch (final Exception e) {
+                throw new IllegalArgumentException(String.format("Could not resolve key \"%s\"!", key), e);
+            }
+        }
+    }
 
     @Override
     public PropsLoader resolve(final String key) {

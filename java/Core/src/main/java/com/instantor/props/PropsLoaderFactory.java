@@ -1,6 +1,7 @@
 package com.instantor.props;
 
 import java.io.File;
+import java.util.Map;
 
 import org.slf4j.Logger;
 
@@ -30,35 +31,46 @@ public class PropsLoaderFactory {
         return value;
     }
 
-    public PropsLoader loadPure(final String projectName) {
+    public PropsResolver loadPure(final String projectName) {
         return loadBranch(projectName, null);
     }
 
-    public PropsLoader loadBranch(final String projectName) {
+    public PropsResolver loadBranch(final String projectName) {
         return loadBranch(projectName, projectName);
     }
 
-    public PropsLoader loadBranch(final String projectName, final String branch) {
+    public PropsResolver loadBranch(final String projectName, final String branch) {
         final File file = new File(propsHome, branch != null
                 ? projectName + "_" + resolveProperty(branch + ".branch")
                 : projectName);
 
         logger.debug("Resolved path for _: {}", file);
-        final PropsLoader propsResolver = new PropsLoaderImpl(logger, propsHome, new File(file, "_"));
+        final PropsLoader propsLoader = new PropsLoaderImpl(logger, propsHome, new File(file, "_"));
 
         // Eagerly try to resolve all references, and fail early.
-        for (final String key : propsResolver.toMap().keySet()) {
+        for (final Map.Entry<String, String> entry : propsLoader.toMap().entrySet()) {
+            final String key = entry.getKey();
+            final String value = entry.getValue();
+
             try {
-                final PropsLoader resolvedProps = propsResolver.resolve(key);
-                resolvedProps.toByteArray();
-                logger.info("  {} = {}", key, resolvedProps.toPath());
+                final boolean isResolver = PropsLoaderImpl.isResolver(value);
+                logger.trace("Is resolver = " + isResolver);
+
+                if (isResolver) {
+                    final PropsResolver resolvedProps = propsLoader.loadResolver(key);
+                    logger.info("  {} = {}", key, resolvedProps.toPath());
+                } else {
+                    final PropsLoader loadedProps = propsLoader.resolve(key);
+                    loadedProps.toByteArray();
+                    logger.info("  {} = {}", key, loadedProps.toPath());
+                }
             } catch (final Exception e) {
                 throw new RuntimeException(String.format(
-                        "Could not resolve key \"%s\" with value \"%s\" from confing file %s",
-                        key, propsResolver.get(key), propsResolver.toPath()));
+                        "Could not resolve key \"%s\" with value \"%s\" from config file %s",
+                        key, value, propsLoader.toPath()), e);
             }
         }
 
-        return propsResolver;
+        return propsLoader;
     }
 }

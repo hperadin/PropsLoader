@@ -4,7 +4,7 @@ import java.io.InputStream;
 import java.util.Map;
 import java.util.Properties;
 
-public interface PropsLoader extends PropsResolver {
+public interface PropsLoader extends PropsResolver, Iterable<Map.Entry<String, String>>{
     public String get(final String key);
     public int getInt(final String key);
 

@@ -11,7 +11,7 @@ trait Default {
     Defaults.defaultSettings ++
     instantorSettings ++ Seq(
       organization := "com.instantor.props"
-    , version      := "0.3.11"
+    , version      := "0.3.15-SNAPSHOT"
     )
 
   lazy val javaSettings =
@@ -26,8 +26,7 @@ trait Default {
     )
 
   lazy val publishing = Seq(
-    publishTo := Some(if (version.value endsWith "-SNAPSHOT") InstantorSnapshots else InstantorReleases)
-  , javacOptions in (Compile, doc) := Nil
+    publicRelease
   , publishArtifact in Test := false
   )
 }
@@ -57,4 +56,10 @@ object PropsLoaderBuild extends Build with Default {
     , EclipseKeys.createSrc := EclipseCreateSrc.Default + EclipseCreateSrc.Resource
     )
   ) dependsOn(api)
+
+  lazy val root = project in(file(".")) aggregate(api, core) settings(
+    name := "PropsLoader"
+  , publishLocal := {}
+  , publish := {}
+  )
 }

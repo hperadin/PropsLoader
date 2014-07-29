@@ -1,6 +1,8 @@
 package com.instantor.props;
 
 import java.io.File;
+import java.util.AbstractMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -39,38 +41,49 @@ public class PropsLoaderFactory {
         return loadBranch(projectName, projectName);
     }
 
+    private final Map<Map.Entry<String, String>, PropsResolver> resolverCache = new LinkedHashMap<>();
+
     public PropsResolver loadBranch(final String projectName, final String branch) {
-        final File file = new File(propsHome, branch != null
-                ? projectName + "_" + resolveProperty(branch + ".branch")
-                : projectName);
+        final Map.Entry<String, String> projectBranch =
+                new AbstractMap.SimpleEntry<>(projectName, branch);
 
-        logger.debug("Resolved path for _: {}", file);
-        final PropsLoader propsLoader = new PropsLoaderImpl(logger, propsHome, new File(file, "_"));
+        synchronized (resolverCache) {
+            final PropsResolver cachedResolver = resolverCache.get(projectBranch);
+            if (cachedResolver != null) return cachedResolver;
 
-        // Eagerly try to resolve all references, and fail early.
-        for (final Map.Entry<String, String> entry : propsLoader.toMap().entrySet()) {
-            final String key = entry.getKey();
-            final String value = entry.getValue();
+            final File file = new File(propsHome, branch != null
+                    ? projectName + "_" + resolveProperty(branch + ".branch")
+                    : projectName);
 
-            try {
-                final boolean isResolver = PropsLoaderImpl.isResolver(value);
-                logger.trace("Is resolver = " + isResolver);
+            logger.debug("Resolved path for _: {}", file);
+            final PropsLoader propsResolver = new PropsLoaderImpl(logger, propsHome, new File(file, "_"));
 
-                if (isResolver) {
-                    final PropsResolver resolvedProps = propsLoader.loadResolver(key);
-                    logger.info("  {} = {}", key, resolvedProps.toPath());
-                } else {
-                    final PropsLoader loadedProps = propsLoader.resolve(key);
-                    loadedProps.toByteArray();
-                    logger.info("  {} = {}", key, loadedProps.toPath());
+            // Eagerly try to resolve all references, and fail early.
+            for (final Map.Entry<String, String> entry : propsResolver) {
+                final String key = entry.getKey();
+                final String value = entry.getValue();
+
+                try {
+                    final boolean isResolver = PropsLoaderImpl.isResolver(value);
+                    logger.trace("Is resolver = " + isResolver);
+
+                    if (isResolver) {
+                        final PropsResolver resolvedProps = propsResolver.loadResolver(key);
+                        logger.info("  {} = {}", key, resolvedProps.toPath());
+                    } else {
+                        final PropsLoader loadedProps = propsResolver.resolve(key);
+                        loadedProps.toByteArray();
+                        logger.info("  {} = {}", key, loadedProps.toPath());
+                    }
+                } catch (final Exception e) {
+                    throw new RuntimeException(String.format(
+                            "Could not resolve key \"%s\" with value \"%s\" from config file %s",
+                            key, value, propsResolver.toPath()), e);
                 }
-            } catch (final Exception e) {
-                throw new RuntimeException(String.format(
-                        "Could not resolve key \"%s\" with value \"%s\" from config file %s",
-                        key, value, propsLoader.toPath()), e);
             }
-        }
 
-        return propsLoader;
+            resolverCache.put(projectBranch, propsResolver);
+            return propsResolver;
+        }
     }
 }

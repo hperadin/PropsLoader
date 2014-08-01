@@ -29,4 +29,4 @@ for ((i=${#branch_stack[@]}-1; i>=0 ; i--));do
     branch_data="$branch_data -D$name=\"$content\""
 done
 
-java $branch_data -Xss2m -Xms2g -Xmx2g -jar project/strap/gruj_vs_sbt-launch-0.13.x.jar \"$*\"
+java $branch_data -Xss2m -Xms2g -Xmx2g -jar project/strap/gruj_vs_sbt-launch-0.13.x.jar "$@"

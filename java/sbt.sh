@@ -1,13 +1,16 @@
 #!/bin/bash
 
+cd "$( dirname "$0" )"
 path=$(pwd)
-branch_stack=()
 
-# Climb upwards until root and record every encountered '*.branch'
+branch_stack=()
+branches=()
+
+# Climb upwards from root and record every encountered *.branch file
 while [ "$(readlink -f $path)" != "/" ]; do
   # Prettify the path
   path=$(readlink -f "$path")
-  for branch_file in $(find "$path" -maxdepth 1 -mindepth 1 -name '*.branch'); do    
+  for branch_file in $(find "$path" -maxdepth 1 -mindepth 1 -name '*.branch'); do
   if [ -e "$branch_file" ]; then
     # Store the path for later
     branch_stack[${#branch_stack[@]}]="$branch_file"
@@ -16,15 +19,14 @@ while [ "$(readlink -f $path)" != "/" ]; do
   path="$path/../"
 done
 
-# Visit the '*.branch' files in reverse, and process them
+# Append the *.branch files content into JVM properties
 for ((i=${#branch_stack[@]}-1; i>=0 ; i--));do
   branch_file=${branch_stack[$i]}
-  path=$(basename "$branch_file")
-
+  path=$(basename $branch_file)
   content=$(cat "$branch_file")
   name=$(basename "$branch_file")
-  echo Found "$branch_file = $content"
-  branch_data="$branch_data -D$name=\"$content\""
+  echo Found "$branch_file := $content"
+  branches[${#branches[@]}]="-D$name=$content"
 done
 
-java $branch_data -Xss2m -Xms2g -Xmx2g -jar project/strap/gruj_vs_sbt-launch-0.13.x.jar "$@"
+exec java "${branches[@]}" -Xss2m -Xms2g -Xmx2g -jar project/strap/gruj_vs_sbt-launch-0.13.x.jar "$@"

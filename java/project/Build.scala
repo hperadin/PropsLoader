@@ -9,7 +9,7 @@ import com.instantor.plugin.InstantorPlugin._
 trait Default {
   lazy val defaultSettings =
     Defaults.defaultSettings ++
-    instantorSettings ++ 
+    instantorSettings ++
     javaSettings ++ Seq(
       organization := "com.instantor.props"
     , version      := "0.3.15-SNAPSHOT"

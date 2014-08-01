@@ -7,28 +7,15 @@ import com.instantor.plugin.InstantorPlugin._
 // ----------------------------------------------------------------------------
 
 trait Default {
-  private lazy val default =
+  lazy val defaultSettings =
     Defaults.defaultSettings ++
-    instantorSettings ++ Seq(
+    instantorSettings ++ 
+    javaSettings ++ Seq(
       organization := "com.instantor.props"
     , version      := "0.3.15-SNAPSHOT"
+    , publicRelease
+    , publishArtifact in Test := false
     )
-
-  lazy val javaSettings =
-    default ++
-    publishing ++ Seq(
-      EclipseKeys.projectFlavor := EclipseProjectFlavor.Java
-    , autoScalaLibrary          := false
-    , crossPaths                := false
-    , testOptions               += Tests.Argument(TestFrameworks.JUnit, "-v", "-q")
-    , unmanagedSourceDirectories in Compile := (javaSource in Compile).value :: Nil
-    , unmanagedSourceDirectories in Test    := (javaSource in Test).value :: Nil
-    )
-
-  lazy val publishing = Seq(
-    publicRelease
-  , publishArtifact in Test := false
-  )
 }
 
 // ----------------------------------------------------------------------------
@@ -37,7 +24,7 @@ object PropsLoaderBuild extends Build with Default {
   lazy val api = Project(
     "api"
   , file("Api")
-  , settings = javaSettings ++ Seq(
+  , settings = defaultSettings ++ Seq(
       name := "PropsLoader-Api"
     , unmanagedSourceDirectories in Test := Nil
     )
@@ -46,10 +33,10 @@ object PropsLoaderBuild extends Build with Default {
   lazy val core = Project(
     "core"
   , file("Core")
-  , settings = javaSettings ++ Seq(
+  , settings = defaultSettings ++ Seq(
       name := "PropsLoader-Core"
     , libraryDependencies ++= Seq(
-        slf4j
+        slf4jApi
       , junitInterface
       , logback % "test"
       )
